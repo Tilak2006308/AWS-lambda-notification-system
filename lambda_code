@@ -1,0 +1,65 @@
+import json
+from datetime import datetime, timezone
+import boto3
+
+# Initialize AWS clients
+s3 = boto3.client("s3")
+sns = boto3.client("sns")
+
+# AWS resource configuration
+S3_BUCKET_NAME = "lambda308"
+SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:748861776816:mytopic"
+
+
+def lambda_handler(event, context):
+
+    # Get current UTC timestamp
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    # --------------------------------------------------
+    # 1. Prepare log data
+    # --------------------------------------------------
+    log_data = {
+        "timestamp": timestamp,
+        "event": event,
+        "message": "Lambda function executed successfully"
+    }
+
+    # --------------------------------------------------
+    # 2. Upload log to S3
+    # --------------------------------------------------
+    s3_key = f"lambda-logs/{timestamp}-execution.json"
+
+    s3.put_object(
+        Bucket=S3_BUCKET_NAME,
+        Key=s3_key,
+        Body=json.dumps(log_data, default=str),
+        ContentType="application/json"
+    )
+
+    # --------------------------------------------------
+    # 3. Send notification using SNS
+    # --------------------------------------------------
+    message = (
+        "Lambda function executed successfully.\n\n"
+        f"Timestamp: {timestamp}\n"
+        f"S3 Bucket: {S3_BUCKET_NAME}\n"
+        f"Log S3 Key: {s3_key}"
+    )
+
+    sns.publish(
+        TopicArn=SNS_TOPIC_ARN,
+        Subject="Lambda Execution Notification",
+        Message=message
+    )
+
+    # --------------------------------------------------
+    # 4. Return response
+    # --------------------------------------------------
+    return {
+        "statusCode": 200,
+        "message": "Log stored in S3 and notification sent via SNS.",
+        "s3_bucket": S3_BUCKET_NAME,
+        "s3_key": s3_key,
+        "sns_topic": SNS_TOPIC_ARN
+    }
